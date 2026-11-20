@@ -2,121 +2,115 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Alumno;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use App\Models\Student;
+use Cloudinary\Cloudinary;
 use Illuminate\Validation\Rule;
-use RuntimeException;
-use Throwable;
 
-class AlumnoController extends Controller
+class StudentController extends Controller
 {
-    public function apiIndex(): JsonResponse
+    public function apiIndex()
     {
-        return response()->json(
-            Alumno::with(['modulos', 'delegado'])->orderBy('id')->paginate(15)
-        );
+        $students = Student::all();
+
+        return response()->json($students->load(['modulo']));
     }
 
-    public function apiStore(Request $request): JsonResponse
+    /**
+     * Store a newly created resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function store(Request $request)
     {
         $validated = $request->validate([
-            'nombre' => ['required', 'string', 'max:255'],
-            'apellidos' => ['required', 'string', 'max:255'],
-            'fecha_nacimiento' => ['required', 'date', 'before_or_equal:today'],
-            'expediente' => ['required', 'string', 'max:255', 'unique:students,expediente'],
-            'foto' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'delegado_id' => ['sometimes', 'nullable', 'integer', 'exists:students,id'],
+            'nombre' => 'required|string|max:255',
+            'apellidos' => 'required|string|max:255',
+            'fecha_nacimiento' => 'required|date|before_or_equal:today',
+            'expediente' => 'required|string|max:255|unique:students,expediente',
+            'module_id' => 'nullable|exists:modules,id',
+            'imagen' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
 
-        if ($request->hasFile('foto')) {
-            $validated['foto'] = $this->storePhoto($request);
-        }
+        $file = $request->file('imagen');
 
-        $alumno = Alumno::create($validated);
+        $cloudinary = new Cloudinary([
+            'cloud' => [
+                'cloud_name' => config('services.cloudinary.cloud_name'),
+                'api_key' => config('services.cloudinary.api_key'),
+                'api_secret' => config('services.cloudinary.api_secret'),
+            ],
+            'url' => ['secure' => true],
+        ]);
 
-        return response()->json([
-            'data' => $alumno->load(['modulos', 'delegado']),
-        ], 201);
+        $resultado = $cloudinary->uploadApi()->upload(
+            $file->getRealPath(),
+            [
+                'folder' => 'students',
+                'resource_type' => 'image',
+            ]
+        );
+
+        $student = Student::create([
+            'nombre' => $request->nombre,
+            'apellidos' => $request->apellidos,
+            'fecha_nacimiento' => $request->fecha_nacimiento,
+            'expediente' => $request->expediente,
+            'module_id' => $request->module_id,
+            'imagen_url' => $resultado['secure_url'],
+            'imagen_public_id' => $resultado['public_id'],
+        ]);
+
+        return response()->json($student->load(['modulo']), 201);
     }
 
-    public function apiShow(int $id): JsonResponse
+    public function apiStore(Request $request)
     {
-        $alumno = Alumno::findOrFail($id);
-
-        return response()->json(['data' => $alumno->load(['modulos', 'delegado'])]);
+        return $this->store($request);
     }
 
-    public function apiUpdate(Request $request, int $id): JsonResponse
+    /**
+     * Display the specified resource.
+     *
+     * @param  \App\Models\Student  $student
+     * @return \Illuminate\Http\Response
+     */
+    public function apiShow($id)
     {
-        $alumno = Alumno::findOrFail($id);
+        $student = Student::findOrFail($id);
+
+        return response()->json($student->load(['modulo']));
+    }
+
+    public function apiUpdate(Request $request, $id)
+    {
+        $student = Student::findOrFail($id);
 
         $validated = $request->validate([
-            'nombre' => ['sometimes', 'required', 'string', 'max:255'],
-            'apellidos' => ['sometimes', 'required', 'string', 'max:255'],
-            'fecha_nacimiento' => ['sometimes', 'required', 'date', 'before_or_equal:today'],
+            'nombre' => 'sometimes|required|string|max:255',
+            'apellidos' => 'sometimes|required|string|max:255',
+            'fecha_nacimiento' => 'sometimes|required|date|before_or_equal:today',
             'expediente' => [
                 'sometimes',
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('students', 'expediente')->ignore($alumno->id),
+                Rule::unique('students', 'expediente')->ignore($student->id),
             ],
-            'foto' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'delegado_id' => ['sometimes', 'nullable', 'integer', 'exists:students,id'],
+            'module_id' => 'sometimes|nullable|exists:modules,id',
         ]);
 
-        if (isset($validated['delegado_id']) && (int) $validated['delegado_id'] === $alumno->id) {
-            return response()->json([
-                'message' => 'Un alumno no puede ser su propio delegado.',
-                'errors' => ['delegado_id' => ['Selecciona otro alumno.']],
-            ], 422);
-        }
+        $student->update($validated);
 
-        $oldPhoto = $alumno->foto;
-        if ($request->hasFile('foto')) {
-            $validated['foto'] = $this->storePhoto($request);
-        }
-
-        try {
-            $alumno->update($validated);
-        } catch (Throwable $exception) {
-            if (isset($validated['foto']) && $validated['foto'] !== $oldPhoto) {
-                Storage::disk('public')->delete($validated['foto']);
-            }
-
-            throw $exception;
-        }
-
-        if (isset($validated['foto']) && $oldPhoto && ! Storage::disk('public')->delete($oldPhoto)) {
-            throw new RuntimeException('No fue posible eliminar la fotografía anterior.');
-        }
-
-        return response()->json(['data' => $alumno->load(['modulos', 'delegado'])]);
+        return response()->json($student->fresh()->load(['modulo']));
     }
 
-    public function apiDestroy(int $id): JsonResponse
+    public function apiDestroy($id)
     {
-        $alumno = Alumno::findOrFail($id);
-        $photo = $alumno->foto;
-        $alumno->delete();
+        $student = Student::findOrFail($id);
+        $student->delete();
 
-        if ($photo && ! Storage::disk('public')->delete($photo)) {
-            throw new RuntimeException('El alumno fue eliminado, pero no fue posible eliminar su fotografía.');
-        }
-
-        return response()->json(null, 204);
-    }
-
-    private function storePhoto(Request $request): string
-    {
-        $path = $request->file('foto')->store('alumnos', 'public');
-
-        if (! $path) {
-            throw new RuntimeException('No fue posible guardar la fotografía del alumno.');
-        }
-
-        return $path;
+        return response()->json(['message' => 'Estudiante eliminado correctamente.']);
     }
 }

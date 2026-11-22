@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Modulo;
-use Illuminate\Validation\Rule;
 
 class ModuloController extends Controller
 {
@@ -12,7 +11,7 @@ class ModuloController extends Controller
     {
         $modulos = Modulo::all();
 
-        return response()->json($modulos->load(['teachers']));
+        return response()->json($modulos);
     }
 
     /**
@@ -24,13 +23,13 @@ class ModuloController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'codigo' => 'required|string|max:255|unique:modules,codigo',
+            'codigo' => 'required|string|max:255',
             'nombre' => 'required|string|max:255',
         ]);
 
         $modulo = Modulo::create($validated);
 
-        return response()->json($modulo->load(['teachers']), 201);
+        return response()->json($modulo, 201);
     }
 
     public function apiStore(Request $request)
@@ -48,7 +47,7 @@ class ModuloController extends Controller
     {
         $modulo = Modulo::findOrFail($id);
 
-        return response()->json($modulo->load(['teachers']));
+        return response()->json($modulo);
     }
 
     public function apiUpdate(Request $request, $id)
@@ -56,19 +55,13 @@ class ModuloController extends Controller
         $modulo = Modulo::findOrFail($id);
 
         $validated = $request->validate([
-            'codigo' => [
-                'sometimes',
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('modules', 'codigo')->ignore($modulo->id),
-            ],
+            'codigo' => 'sometimes|required|string|max:255',
             'nombre' => 'sometimes|required|string|max:255',
         ]);
 
         $modulo->update($validated);
 
-        return response()->json($modulo->fresh()->load(['teachers']));
+        return response()->json($modulo->fresh());
     }
 
     public function apiSyncProfesores(Request $request, $id)
@@ -82,7 +75,7 @@ class ModuloController extends Controller
 
         $modulo->teachers()->sync($validated['profesores']);
 
-        return response()->json($modulo->fresh()->load(['teachers']));
+        return response()->json($modulo->fresh());
     }
 
     public function apiDestroy($id)

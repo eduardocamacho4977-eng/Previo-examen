@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Teacher;
-use Illuminate\Validation\Rule;
 
 class TeacherController extends Controller
 {
@@ -12,7 +11,7 @@ class TeacherController extends Controller
     {
         $teachers = Teacher::all();
 
-        return response()->json($teachers->load(['modulos']));
+        return response()->json($teachers);
     }
 
     /**
@@ -32,7 +31,7 @@ class TeacherController extends Controller
 
         $teacher = Teacher::create($validated);
 
-        return response()->json($teacher->load(['modulos']), 201);
+        return response()->json($teacher, 201);
     }
 
     public function apiStore(Request $request)
@@ -50,7 +49,7 @@ class TeacherController extends Controller
     {
         $teacher = Teacher::findOrFail($id);
 
-        return response()->json($teacher->load(['modulos']));
+        return response()->json($teacher);
     }
 
     public function apiUpdate(Request $request, $id)
@@ -61,18 +60,12 @@ class TeacherController extends Controller
             'nombre' => 'sometimes|required|string|max:255',
             'apellido' => 'sometimes|required|string|max:255',
             'telefono' => 'sometimes|nullable|string|max:30',
-            'cedula' => [
-                'sometimes',
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('teachers', 'cedula')->ignore($teacher->id),
-            ],
+            'cedula' => 'sometimes|required|string|max:255',
         ]);
 
         $teacher->update($validated);
 
-        return response()->json($teacher->fresh()->load(['modulos']));
+        return response()->json($teacher->fresh());
     }
 
     public function apiDestroy($id)

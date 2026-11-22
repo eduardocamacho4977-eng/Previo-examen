@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('module_teacher', function (Blueprint $table) {
+        Schema::create('module_teachers', function (Blueprint $table) {
             $table->id();
                 
             // llaves fonraneas de courses y teachers
@@ -31,6 +31,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('module_teacher');
+        Schema::dropIfExists('module_teachers');
     }
 };

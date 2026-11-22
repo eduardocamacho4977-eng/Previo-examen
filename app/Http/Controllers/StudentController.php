@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Student;
 use Cloudinary\Cloudinary;
-use Illuminate\Validation\Rule;
 
 class StudentController extends Controller
 {
@@ -91,13 +90,7 @@ class StudentController extends Controller
             'nombre' => 'sometimes|required|string|max:255',
             'apellidos' => 'sometimes|required|string|max:255',
             'fecha_nacimiento' => 'sometimes|required|date|before_or_equal:today',
-            'expediente' => [
-                'sometimes',
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('students', 'expediente')->ignore($student->id),
-            ],
+            'expediente' => 'sometimes|required|string|max:255',
             'module_id' => 'sometimes|nullable|exists:modules,id',
         ]);
 
